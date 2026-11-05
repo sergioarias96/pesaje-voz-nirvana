@@ -850,9 +850,14 @@
   function onResult(ev) {
     var interim = '';
     restartDelay = 250;
+    if (ev.target !== rec || !rec) { return; }
+    var seen = rec.seenFinals || (rec.seenFinals = {});
     for (var i = ev.resultIndex; i < ev.results.length; i++) {
       var r = ev.results[i];
       if (r.isFinal) {
+        // Chrome on Android may deliver the same final result again.
+        if (seen[i]) { continue; }
+        seen[i] = true;
         var alts = [];
         for (var k = 0; k < r.length; k++) { alts.push(r[k].transcript); }
         handleFinal(alts);
@@ -866,6 +871,10 @@
   function handleFinal(alts) {
     var primary = normalizeText(alts[0]);
     var now = Date.now();
+    if (isEcho(alts)) {
+      $('heard').textContent = 'Ignorado (voz de la app): «' + alts[0].trim() + '»';
+      return;
+    }
     if (primary && primary === lastFinal.text && now - lastFinal.t < 2000) { return; }
     lastFinal = { text: primary, t: now };
     $('heard').textContent = 'Escuché: «' + alts[0].trim() + '»';
@@ -914,14 +923,39 @@
       if (navigator.vibrate) { navigator.vibrate(kind === 'ok' ? 40 : [80, 60, 80]); }
     } catch (e) { /* sin audio */ }
   }
+  // Echo guard: the microphone hears the app's own read-back. Anything
+  // recognized while it speaks (plus a short tail) is ignored, and for a few
+  // seconds after, a repeat of exactly what it said is ignored too.
+  var ECHO_TAIL_MS = 800, ECHO_REPEAT_MS = 2500, ECHO_MAX_MS = 6000;
+  var echo = { until: 0, endedAt: 0, words: '' };
+
   function speak(text) {
     if (!settings.speak || !('speechSynthesis' in window)) { return; }
     try {
       speechSynthesis.cancel();
       var u = new SpeechSynthesisUtterance(text);
       u.lang = 'es-CO'; u.rate = 1.1;
+      echo.words = parseQuickWords(text);
+      echo.until = Date.now() + ECHO_MAX_MS;
+      u.onend = u.onerror = function () {
+        echo.endedAt = Date.now();
+        echo.until = echo.endedAt + ECHO_TAIL_MS;
+      };
       speechSynthesis.speak(u);
-    } catch (e) { /* sin síntesis */ }
+    } catch (e) { echo.until = 0; }
+  }
+
+  /** Numbers in a text as a comparable key ("1.250" and "1250" match). */
+  function parseQuickWords(text) {
+    return parseCommands(String(text), 'g', true)
+      .map(function (c) { return c.type === 'weight' ? c.value : c.type; }).join('|');
+  }
+
+  function isEcho(alts) {
+    var now = Date.now();
+    if (now < echo.until) { return true; }
+    if (!echo.words || now - echo.endedAt > ECHO_REPEAT_MS) { return false; }
+    return alts.some(function (a) { return parseQuickWords(a) === echo.words; });
   }
 
   // ---------- Interfaz ----------
