@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1D2F3E">
+<title>Pesaje por voz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #FFFAF7;
+    --surface: #FFFFFF;
+    --ink: #1D2F3E;
+    --muted: #5F6E78;
+    --line: #E6DED7;
+    --accent: #C3884C;
+    --accent-text: #9A6A37;
+    --info: #3E6E8E;
+    --ok: #2E7D4F;
+    --warn: #8A5A00;
+    --danger: #B3261E;
+    --warn-bg: #FFF3DC;
+    --danger-bg: #FCE8E6;
+    --ok-bg: #E7F4EC;
+    --btn-bg: #1D2F3E;
+    --btn-text: #FFFAF7;
+    --radius: 14px;
+    --font: "Visby CF", "Jost", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #1D2F3E;
+      --surface: #243849;
+      --ink: #FFFAF7;
+      --muted: #A7B2A6;
+      --line: #35495A;
+      --accent: #DBB286;
+      --accent-text: #DBB286;
+      --info: #A9BBCB;
+      --ok: #7FD1A0;
+      --warn: #F2C46D;
+      --danger: #F2A49C;
+      --warn-bg: #3B3420;
+      --danger-bg: #43282A;
+      --ok-bg: #1F3D30;
+      --btn-bg: #FFFAF7;
+      --btn-text: #1D2F3E;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--paper); color: var(--ink); }
+  body {
+    font-family: var(--font);
+    font-size: 1.0625rem;
+    line-height: 1.4;
+    padding: 0 16px calc(132px + env(safe-area-inset-bottom));
+  }
+  main { max-width: 560px; margin: 0 auto; }
+  header {
+    display: flex; align-items: center; gap: 8px;
+    padding: calc(12px + env(safe-area-inset-top)) 0 12px;
+  }
+  header h1 { font-size: 1.25rem; margin: 0; flex: 1; font-weight: 700; }
+  button { font: inherit; color: inherit; }
+  button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+    outline: 3px solid var(--info); outline-offset: 2px;
+  }
+  .pill {
+    min-height: 44px; border-radius: 999px; border: 1px solid var(--line);
+    background: var(--surface); padding: 0 14px; display: inline-flex;
+    align-items: center; gap: 6px; font-size: .9375rem; cursor: pointer;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+  .pill[data-state="ok"] .dot { background: var(--ok); }
+  .pill[data-state="pending"] .dot { background: var(--warn); }
+  .pill[data-state="error"] .dot { background: var(--danger); }
+  .icon-btn {
+    width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--surface); cursor: pointer; display: grid; place-items: center;
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 16px; margin-bottom: 12px;
+  }
+  .ctx { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .ctx label { display: block; font-size: .875rem; color: var(--muted); margin-bottom: 6px; }
+  .stepper { display: flex; align-items: center; gap: 6px; }
+  .stepper button {
+    width: 48px; height: 48px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--paper); font-size: 1.5rem; cursor: pointer; flex: none;
+  }
+  .stepper input {
+    width: 100%; min-width: 0; height: 48px; text-align: center; font-family: var(--mono);
+    font-size: 1.5rem; font-weight: 600; border: 1px solid var(--line);
+    border-radius: 12px; background: var(--paper); color: var(--ink);
+  }
+  .stats { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .stat { flex: 1 1 30%; background: var(--paper); border-radius: 10px; padding: 8px 10px; }
+  .stat span { display: block; font-size: .75rem; color: var(--muted); }
+  .stat strong { font-family: var(--mono); font-size: 1.0625rem; }
+  .feedback {
+    border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px;
+    border: 1px solid var(--line); background: var(--surface); min-height: 76px;
+  }
+  .feedback[data-kind="ok"] { background: var(--ok-bg); border-color: transparent; }
+  .feedback[data-kind="error"] { background: var(--danger-bg); border-color: transparent; }
+  .feedback[data-kind="warn"] { background: var(--warn-bg); border-color: transparent; }
+  .feedback .big { font-family: var(--mono); font-size: 2rem; font-weight: 600; display: block; }
+  .heard { color: var(--muted); font-size: .9375rem; min-height: 1.4em; margin: 0 0 12px; overflow-wrap: anywhere; }
+  .confirm { display: flex; gap: 8px; margin-top: 10px; }
+  .btn {
+    min-height: 48px; border-radius: 12px; padding: 0 18px; font-weight: 600;
+    border: 1px solid var(--line); background: var(--surface); cursor: pointer;
+  }
+  .btn.primary { background: var(--btn-bg); color: var(--btn-text); border-color: var(--btn-bg); }
+  .btn.danger { color: var(--danger); }
+  .manual { display: flex; gap: 8px; }
+  .manual input {
+    flex: 1; min-width: 0; height: 52px; border-radius: 12px; border: 1px solid var(--line);
+    padding: 0 14px; font-family: var(--mono); font-size: 1.25rem; background: var(--paper); color: var(--ink);
+  }
+  h2 { font-size: 1rem; margin: 0 0 10px; }
+  .history { list-style: none; margin: 0; padding: 0; }
+  .history li {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
+    padding: 10px 0; border-top: 1px solid var(--line);
+  }
+  .history li:first-child { border-top: 0; }
+  .history .w { font-family: var(--mono); font-weight: 600; font-size: 1.125rem; }
+  .history .meta { color: var(--muted); font-size: .8125rem; }
+  .badge { font-size: .75rem; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+  .badge.synced { background: var(--ok-bg); color: var(--ok); }
+  .badge.pending, .badge.syncing, .badge.deleting { background: var(--warn-bg); color: var(--warn); }
+  .badge.error { background: var(--danger-bg); color: var(--danger); }
+  .empty { color: var(--muted); margin: 0; }
+  details summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+  details ul { padding-left: 20px; margin: 6px 0 0; }
+  details li { margin-bottom: 6px; }
+  code, kbd { font-family: var(--mono); font-size: .9em; background: var(--paper); padding: 1px 5px; border-radius: 6px; }
+  .dock {
+    position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface);
+    border-top: 1px solid var(--line); padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  }
+  .dock-inner { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; }
+  .mic {
+    width: 96px; height: 96px; border-radius: 50%; border: 0; cursor: pointer;
+    background: var(--btn-bg); color: var(--btn-text); display: grid; place-items: center;
+    box-shadow: 0 0 0 0 var(--accent); transition: box-shadow .2s;
+  }
+  .mic[aria-pressed="true"] { background: var(--accent); color: #1D2F3E; animation: pulse 1.6s infinite; }
+  .mic svg { width: 40px; height: 40px; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(195,136,76,.55); }
+    70% { box-shadow: 0 0 0 18px rgba(195,136,76,0); }
+    100% { box-shadow: 0 0 0 0 rgba(195,136,76,0); }
+  }
+  @media (prefers-reduced-motion: reduce) { .mic[aria-pressed="true"] { animation: none; box-shadow: 0 0 0 6px var(--accent-text); } }
+  .dock-label { font-size: .875rem; color: var(--muted); text-align: right; }
+  .dock .btn { justify-self: start; }
+  dialog {
+    border: 0; border-radius: var(--radius); padding: 0; width: min(560px, calc(100% - 24px));
+    background: var(--surface); color: var(--ink);
+  }
+  dialog::backdrop { background: rgba(29,47,62,.55); }
+  .dlg { padding: 18px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-weight: 600; margin-bottom: 4px; }
+  .field .hint { font-size: .8125rem; color: var(--muted); margin-top: 4px; }
+  .field input[type="text"], .field input[type="url"], .field input[type="number"], .field input[type="password"], .field select {
+    width: 100%; height: 48px; border-radius: 10px; border: 1px solid var(--line);
+    padding: 0 12px; font: inherit; background: var(--paper); color: var(--ink);
+  }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+  .check input { width: 22px; height: 22px; }
+  .dlg-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Pesaje por voz</h1>
+    <button class="pill" id="syncPill" type="button" data-state="ok" aria-describedby="syncText">
+      <span class="dot" aria-hidden="true"></span><span id="syncText">Sincronizado</span>
+    </button>
+    <button class="icon-btn" id="openSettings" type="button" aria-label="Configuración">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </header>
+
+  <section class="card" aria-label="Galpón y pollos por canasta">
+    <div class="ctx">
+      <div>
+        <label for="shedInput">Galpón</label>
+        <div class="stepper">
+          <button type="button" data-step="shed" data-delta="-1" aria-label="Galpón anterior">−</button>
+          <input id="shedInput" inputmode="numeric" autocomplete="off" maxlength="10">
+          <button type="button" data-step="shed" data-delta="1" aria-label="Galpón siguiente">+</button>
+        </div>
+      </div>
+      <div>
+        <label for="birdsInput">Pollos por canasta</label>
+        <div class="stepper">
+          <button type="button" data-step="birds" data-delta="-1" aria-label="Un pollo menos">−</button>
+          <input id="birdsInput" inputmode="numeric" autocomplete="off" maxlength="3">
+          <button type="button" data-step="birds" data-delta="1" aria-label="Un pollo más">+</button>
+        </div>
+      </div>
+    </div>
+    <div class="stats" aria-live="off">
+      <div class="stat"><span>Canastas hoy</span><strong id="statCount">0</strong></div>
+      <div class="stat"><span>Prom./ave</span><strong id="statAvg">—</strong></div>
+      <div class="stat"><span>Último</span><strong id="statLast">—</strong></div>
+    </div>
+  </section>
+
+  <div class="feedback" id="feedback" data-kind="idle" role="status" aria-live="polite">
+    <span id="feedbackText">Toca el micrófono y di <strong>«peso»</strong> seguido del valor.</span>
+    <div class="confirm" id="confirmBox" hidden>
+      <button class="btn primary" type="button" id="confirmYes">Registrar igual</button>
+      <button class="btn" type="button" id="confirmNo">Descartar</button>
+    </div>
+  </div>
+  <p class="heard" id="heard" aria-hidden="true"></p>
+
+  <section class="card" aria-labelledby="manualTitle">
+    <h2 id="manualTitle">Registro manual</h2>
+    <form class="manual" id="manualForm" autocomplete="off">
+      <label class="sr-only" for="manualInput">Peso de la canasta</label>
+      <input id="manualInput" inputmode="decimal" placeholder="Peso (g o kg)" enterkeyhint="done">
+      <button class="btn primary" type="submit">Registrar</button>
+    </form>
+  </section>
+
+  <section class="card" aria-labelledby="histTitle">
+    <h2 id="histTitle">Últimos registros</h2>
+    <p class="empty" id="histEmpty">Aún no hay pesos de hoy. Los que dictes aparecerán aquí.</p>
+    <ul class="history" id="history"></ul>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Comandos de voz</summary>
+      <ul>
+        <li><strong>peso</strong> + valor: <code>peso once mil doscientos setenta</code>, <code>peso 11270</code> o <code>peso 11,27 kilos</code>.</li>
+        <li><strong>galpón</strong> + número: <code>galpón 3</code>.</li>
+        <li><strong>pollos</strong> + número: <code>pollos 6</code> (también <em>cantidad</em> o <em>aves</em>).</li>
+        <li><strong>borrar</strong> o <strong>deshacer</strong>: elimina el último peso.</li>
+        <li>Puedes decir varios seguidos: <code>galpón 2 pollos 6 peso 11880</code>.</li>
+        <li>Valores menores a 100 se toman como kilos (11,27 → 11.270 g).</li>
+      </ul>
+    </details>
+  </section>
+</main>
+
+<div class="dock">
+  <div class="dock-inner">
+    <button class="btn" type="button" id="undoBtn">Deshacer</button>
+    <button class="mic" type="button" id="micBtn" aria-pressed="false" aria-describedby="micLabel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>
+      <span class="sr-only">Micrófono</span>
+    </button>
+    <span class="dock-label" id="micLabel">Toca para escuchar</span>
+  </div>
+</div>
+
+<dialog id="settings" aria-labelledby="settingsTitle">
+  <form class="dlg" id="settingsForm" method="dialog">
+    <h2 id="settingsTitle">Configuración</h2>
+    <div class="field" id="endpointField">
+      <label for="setEndpoint">URL de la API (Apps Script)</label>
+      <input type="url" id="setEndpoint" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+      <div class="hint">La URL /exec de la implementación como aplicación web.</div>
+    </div>
+    <div class="field">
+      <label for="setToken">Token de acceso</label>
+      <input type="password" id="setToken" autocomplete="off">
+      <div class="hint">Se obtiene ejecutando <code>setupPesajeToken</code> en Apps Script.</div>
+    </div>
+    <div class="field">
+      <label for="setUnit">Unidad dictada</label>
+      <select id="setUnit">
+        <option value="auto">Automática (&lt;100 = kg, resto = g)</option>
+        <option value="g">Siempre gramos</option>
+        <option value="kg">Siempre kilos</option>
+      </select>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="setMin">Mínimo (g)</label>
+        <input type="number" id="setMin" inputmode="numeric" min="1">
+      </div>
+      <div class="field">
+        <label for="setMax">Máximo (g)</label>
+        <input type="number" id="setMax" inputmode="numeric" min="1">
+      </div>
+    </div>
+    <div class="field hint">Fuera de ese rango la app pide confirmación antes de registrar.</div>
+    <label class="check"><input type="checkbox" id="setSpeak"> Leer en voz alta cada peso registrado</label>
+    <label class="check"><input type="checkbox" id="setBeep"> Sonido y vibración de confirmación</label>
+    <p class="hint" id="testResult" role="status" aria-live="polite"></p>
+    <div class="dlg-actions">
+      <button class="btn" type="button" id="testConn">Probar conexión</button>
+      <button class="btn" type="button" id="clearSynced">Limpiar historial enviado</button>
+      <button class="btn primary" type="submit" value="save">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function () {
+  'use strict';
+
+  // PARSER-START
+  var KEYWORDS = {
+    peso: 'weight', pesos: 'weight', pesa: 'weight',
+    galpon: 'shed', galpones: 'shed',
+    pollos: 'birds', pollo: 'birds', aves: 'birds', cantidad: 'birds',
+    borrar: 'undo', borra: 'undo', deshacer: 'undo', eliminar: 'undo'
+  };
+  var KEYWORD_RE = /\b(pesos|peso|pesa|galpones|galpon|pollos|pollo|aves|cantidad|borrar|borra|deshacer|eliminar)\b/g;
+  var UNITS = {
+    cero: 0, un: 1, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6,
+    siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13, catorce: 14,
+    quince: 15, dieciseis: 16, diecisiete: 17, dieciocho: 18, diecinueve: 19, veinte: 20,
+    veintiun: 21, veintiuno: 21, veintidos: 22, veintitres: 23, veinticuatro: 24,
+    veinticinco: 25, veintiseis: 26, veintisiete: 27, veintiocho: 28, veintinueve: 29
+  };
+  var TENS = { treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60, setenta: 70, ochenta: 80, noventa: 90 };
+  var HUNDREDS = {
+    cien: 100, ciento: 100, doscientos: 200, doscientas: 200, trescientos: 300,
+    cuatrocientos: 400, quinientos: 500, seiscientos: 600, setecientos: 700,
+    ochocientos: 800, novecientos: 900
+  };
+
+  function normalizeText(text) {
+    return String(text || '').toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9.,\s]/g, ' ')
+      .replace(/\s+/g, ' ').trim();
+  }
+
+  function wordsToInt(words) {
+    var total = 0, current = 0, found = false;
+    for (var i = 0; i < words.length; i++) {
+      var w = words[i];
+      if (w === 'y' && found) { continue; }
+      if (/^\d+$/.test(w)) { current += Number(w); }
+      else if (Object.prototype.hasOwnProperty.call(UNITS, w)) { current += UNITS[w]; }
+      else if (Object.prototype.hasOwnProperty.call(TENS, w)) { current += TENS[w]; }
+      else if (Object.prototype.hasOwnProperty.call(HUNDREDS, w)) { current += HUNDREDS[w]; }
+      else if (w === 'mil') { total += (current || 1) * 1000; current = 0; }
+      else { break; }
+      found = true;
+    }
+    return found ? total + current : null;
+  }
+
+  function parseSpanishWords(segment) {
+    var words = segment.split(/\s+/).filter(Boolean);
+    var idx = -1;
+    for (var i = 0; i < words.length; i++) {
+      if (words[i] === 'coma' || words[i] === 'punto') { idx = i; break; }
+    }
+    if (idx < 0) { return wordsToInt(words); }
+    var intPart = wordsToInt(words.slice(0, idx));
+    if (intPart === null) { return null; }
+    var decWords = words.slice(idx + 1);
+    var digits = '';
+    for (var j = 0; j < decWords.length; j++) {
+      var w = decWords[j];
+      if (/^\d+$/.test(w)) { digits += w; continue; }
+      if (Object.prototype.hasOwnProperty.call(UNITS, w) && UNITS[w] < 10) { digits += String(UNITS[w]); continue; }
+      break;
+    }
+    if (!digits) {
+      var dec = wordsToInt(decWords);
+      if (dec === null) { return intPart; }
+      digits = String(dec);
+    }
+    return parseFloat(intPart + '.' + digits);
+  }
+
+  function parseDigits(segment) {
+    var m = segment.match(/\d[\d.,\s]*/);
+    if (!m) { return null; }
+    var t = m[0].trim().replace(/(\d)\s+(?=\d{3}(?!\d))/g, '$1');
+    t = t.split(/\s+/)[0].replace(/[.,]+$/, '');
+    var dots = (t.match(/\./g) || []).length;
+    var commas = (t.match(/,/g) || []).length;
+    if (dots && commas) { t = t.replace(/\./g, '').replace(',', '.'); }
+    else if (commas > 1) { t = t.replace(/,/g, ''); }
+    else if (commas === 1) { t = t.replace(',', '.'); }
+    else if (dots > 1) { t = t.replace(/\./g, ''); }
+    var n = parseFloat(t);
+    return isFinite(n) ? n : null;
+  }
+
+  function parseNumber(segment) {
+    if (/\bmil\b/.test(segment) || !/\d/.test(segment)) {
+      var w = parseSpanishWords(segment);
+      if (w !== null) { return w; }
+    }
+    return parseDigits(segment);
+  }
+
+  function parseWeight(segment, unit) {
+    var n = parseNumber(segment);
+    if (n === null || n <= 0) { return null; }
+    var hint = /\b(kilo|kilos|kg)\b/.test(segment) ? 'kg'
+      : /\b(gramo|gramos|gr|g)\b/.test(segment) ? 'g' : null;
+    var u = hint || (unit === 'auto' || !unit ? (n < 100 ? 'kg' : 'g') : unit);
+    return Math.round(u === 'kg' ? n * 1000 : n);
+  }
+
+  function parseInteger(segment) {
+    var n = parseNumber(segment);
+    return n === null ? null : Math.round(n);
+  }
+
+  function parseCommands(text, unit) {
+    var t = normalizeText(text);
+    var matches = [], m;
+    KEYWORD_RE.lastIndex = 0;
+    while ((m = KEYWORD_RE.exec(t)) !== null) {
+      matches.push({ kw: m[1], start: m.index, end: m.index + m[1].length });
+    }
+    var cmds = [];
+    for (var i = 0; i < matches.length; i++) {
+      var type = KEYWORDS[matches[i].kw];
+      var seg = t.slice(matches[i].end, i + 1 < matches.length ? matches[i + 1].start : t.length).trim();
+      if (type === 'undo') { cmds.push({ type: 'undo' }); continue; }
+      if (type === 'weight') { cmds.push({ type: 'weight', value: parseWeight(seg, unit), raw: seg }); continue; }
+      var v = parseInteger(seg);
+      cmds.push({ type: type, value: v, raw: seg });
+    }
+    return cmds;
+  }
+  // PARSER-END
+
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { parseCommands: parseCommands, parseWeight: parseWeight };
+    return;
+  }
+
+  // ---------- Estado y almacenamiento ----------
+  var STORE_SETTINGS = 'pesajeVoz.settings';
+  var STORE_ENTRIES = 'pesajeVoz.entries';
+  var IS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
+  var DEFAULTS = { endpoint: '', token: '', unit: 'auto', min: 500, max: 30000, speak: true, beep: true, shed: '', birds: '' };
+  var fmt = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
+
+  function load(key, fallback) {
+    try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; }
+  }
+  function store(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* almacenamiento no disponible */ }
+  }
+
+  var settings = Object.assign({}, DEFAULTS, load(STORE_SETTINGS, {}));
+  var entries = load(STORE_ENTRIES, []);
+  entries.forEach(function (e) { if (e.status === 'syncing') { e.status = 'pending'; } if (e.status === 'deleting') { e.status = 'synced'; } });
+  var pendingConfirm = null;
+  var syncing = false, backoffMs = 0, retryTimer = null, lastSyncError = '', authBlocked = false;
+
+  function saveSettings() { store(STORE_SETTINGS, settings); }
+  function saveEntries() {
+    var cutoff = Date.now() - 2 * 86400000;
+    entries = entries.filter(function (e) {
+      return e.status !== 'synced' || e.ts >= cutoff;
+    }).slice(-400);
+    store(STORE_ENTRIES, entries);
+  }
+
+  function $(id) { return document.getElementById(id); }
+  function uuid() {
+    if (window.crypto && crypto.randomUUID) { return crypto.randomUUID(); }
+    return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+  }
+  function isToday(ts) { return new Date(ts).toDateString() === new Date().toDateString(); }
+
+  // ---------- Transporte ----------
+  function callApi(payload) {
+    payload.token = settings.token;
+    if (IS_GAS) {
+      return new Promise(function (resolve, reject) {
+        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).apiCall(payload);
+      });
+    }
+    if (!settings.endpoint) { return Promise.reject(new Error('no_endpoint')); }
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { ctrl.abort(); }, 25000);
+    return fetch(settings.endpoint, { method: 'POST', body: JSON.stringify(payload), signal: ctrl.signal })
+      .then(function (r) { if (!r.ok) { throw new Error('http_' + r.status); } return r.json(); })
+      .finally(function () { clearTimeout(timer); });
+  }
+
+  var ERROR_TEXT = {
+    invalid_token: 'Token incorrecto. Revísalo en Configuración.',
+    token_not_configured: 'Falta ejecutar setupPesajeToken en Apps Script.',
+    no_endpoint: 'Falta la URL de la API en Configuración.',
+    sheet_not_found: 'No se encontró la hoja «Datos crudos galpones».',
+    not_last_row: 'Ya no es la última fila de la hoja: bórralo a mano.',
+    mismatch: 'La fila cambió en la hoja: bórralo a mano.',
+    not_found: 'No se encontró el registro en la hoja.',
+    invalid_weight: 'Peso no válido.',
+    invalid_birds: 'Número de pollos no válido.',
+    invalid_shed: 'Galpón no válido.'
+  };
+  function errorText(code) { return ERROR_TEXT[code] || ('Error: ' + code); }
+
+  // ---------- Sincronización ----------
+  function scheduleRetry() {
+    clearTimeout(retryTimer);
+    backoffMs = Math.min(backoffMs ? backoffMs * 2 : 5000, 60000);
+    retryTimer = setTimeout(syncNow, backoffMs);
+  }
+
+  function syncNow() {
+    if (syncing || authBlocked) { renderSync(); return; }
+    var batch = entries.filter(function (e) { return e.status === 'pending'; }).slice(0, 50);
+    if (!batch.length) { renderSync(); return; }
+    if (!navigator.onLine) { renderSync(); return; }
+    syncing = true;
+    batch.forEach(function (e) { e.status = 'syncing'; });
+    render();
+    callApi({ action: 'append', entries: batch.map(function (e) {
+      return { id: e.id, shed: e.shed, birds: e.birds, weight: e.weight, ts: e.ts };
+    }) }).then(function (res) {
+      if (!res || !res.ok) { throw new Error((res && res.error) || 'unknown'); }
+      var byId = {};
+      res.results.forEach(function (r) { byId[r.id] = r; });
+      batch.forEach(function (e) {
+        var r = byId[e.id];
+        if (r && r.ok) { e.status = 'synced'; e.row = r.row; e.error = ''; }
+        else if (r) { e.status = 'error'; e.error = r.error; }
+        else { e.status = 'pending'; }
+      });
+      backoffMs = 0; lastSyncError = '';
+    }).catch(function (err) {
+      var code = (err && err.message) || String(err);
+      batch.forEach(function (e) { if (e.status === 'syncing') { e.status = 'pending'; } });
+      lastSyncError = code;
+      if (code === 'invalid_token' || code === 'token_not_configured' || code === 'no_endpoint') {
+        authBlocked = true;
+        showFeedback('error', errorText(code));
+      } else {
+        scheduleRetry();
+      }
+    }).then(function () {
+      syncing = false;
+      saveEntries();
+      render();
+      if (!lastSyncError && entries.some(function (e) { return e.status === 'pending'; })) { syncNow(); }
+    });
+  }
+
+  // ---------- Registro ----------
+  function currentContext() {
+    var shed = String(settings.shed || '').trim();
+    var birds = parseInt(settings.birds, 10);
+    return { shed: shed, birds: birds };
+  }
+
+  function addWeight(grams, force) {
+    var ctx = currentContext();
+    if (!ctx.shed || !(ctx.birds > 0)) {
+      feedbackError('Primero define el galpón y los pollos por canasta.');
+      return;
+    }
+    if (!force && (grams < settings.min || grams > settings.max)) {
+      pendingConfirm = grams;
+      showFeedback('warn', fmt.format(grams) + ' g está fuera del rango ' + fmt.format(settings.min) + '–' + fmt.format(settings.max) + ' g. ¿Lo registro?', true);
+      cue('error');
+      speak('Fuera de rango, ' + fmt.format(grams) + ' gramos');
+      return;
+    }
+    pendingConfirm = null;
+    entries.push({ id: uuid(), shed: ctx.shed, birds: ctx.birds, weight: grams, ts: Date.now(), status: 'pending' });
+    saveEntries();
+    showFeedback('ok', '<span class="big">' + fmt.format(grams) + ' g</span>Galpón ' + escapeHtml(ctx.shed) + ' · ' + ctx.birds + ' pollos · ' + fmt.format(grams / ctx.birds) + ' g/ave');
+    cue('ok');
+    speak(fmt.format(grams));
+    render();
+    syncNow();
+  }
+
+  function undoLast() {
+    var last = null;
+    for (var i = entries.length - 1; i >= 0; i--) { if (entries[i].status !== 'removed') { last = entries[i]; break; } }
+    if (!last || !isToday(last.ts)) { feedbackError('No hay pesos para deshacer.'); return; }
+    if (last.status === 'pending' || last.status === 'error') {
+      entries.splice(entries.indexOf(last), 1);
+      saveEntries(); render();
+      showFeedback('ok', 'Borrado: ' + fmt.format(last.weight) + ' g');
+      cue('ok'); speak('Borrado');
+      return;
+    }
+    if (last.status === 'syncing' || last.status === 'deleting') {
+      feedbackError('Enviando a la hoja, intenta de nuevo en un momento.');
+      return;
+    }
+    if (!navigator.onLine) { feedbackError('Sin conexión: no se puede borrar un peso ya enviado.'); return; }
+    last.status = 'deleting'; render();
+    callApi({ action: 'delete', id: last.id, weight: last.weight }).then(function (res) {
+      if (res && res.ok) {
+        entries.splice(entries.indexOf(last), 1);
+        showFeedback('ok', 'Borrado de la hoja: ' + fmt.format(last.weight) + ' g');
+        cue('ok'); speak('Borrado');
+      } else {
+        last.status = 'synced';
+        feedbackError(errorText(res && res.error));
+      }
+    }).catch(function (err) {
+      last.status = 'synced';
+      feedbackError('No se pudo borrar: ' + ((err && err.message) || err));
+    }).then(function () { saveEntries(); render(); });
+  }
+
+  function setShed(v) {
+    settings.shed = String(v); saveSettings(); render();
+    showFeedback('ok', 'Galpón ' + escapeHtml(settings.shed)); cue('ok'); speak('Galpón ' + settings.shed);
+  }
+  function setBirds(v) {
+    settings.birds = String(v); saveSettings(); render();
+    showFeedback('ok', settings.birds + ' pollos por canasta'); cue('ok'); speak(settings.birds + ' pollos');
+  }
+
+  function executeCommands(cmds) {
+    var handled = false;
+    cmds.forEach(function (c) {
+      if (c.type === 'undo') { undoLast(); handled = true; return; }
+      if (c.value === null || c.value === undefined || isNaN(c.value)) {
+        feedbackError('No entendí el número después de «' + (c.type === 'weight' ? 'peso' : c.type === 'shed' ? 'galpón' : 'pollos') + '».');
+        handled = true;
+        return;
+      }
+      if (c.type === 'shed' && c.value > 0) { setShed(c.value); handled = true; }
+      else if (c.type === 'birds' && c.value > 0 && c.value <= 500) { setBirds(c.value); handled = true; }
+      else if (c.type === 'weight') { addWeight(c.value, false); handled = true; }
+    });
+    return handled;
+  }
+
+  // ---------- Voz ----------
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var rec = null, wantListening = false, restartTimer = null, restartDelay = 250;
+  var lastFinal = { text: '', t: 0 };
+  var wakeLock = null;
+
+  function startListening() {
+    if (!SR) {
+      feedbackError('Este navegador no tiene reconocimiento de voz. Usa Chrome en Android o el registro manual.');
+      return;
+    }
+    unlockAudio();
+    wantListening = true;
+    restartDelay = 250;
+    createAndStart();
+    requestWakeLock();
+    renderMic();
+  }
+
+  function stopListening() {
+    wantListening = false;
+    clearTimeout(restartTimer);
+    if (rec) { try { rec.abort(); } catch (e) { /* ya detenido */ } }
+    rec = null;
+    releaseWakeLock();
+    $('heard').textContent = '';
+    renderMic();
+  }
+
+  function createAndStart() {
+    if (!wantListening) { return; }
+    rec = new SR();
+    rec.lang = 'es-CO';
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 3;
+    rec.onresult = onResult;
+    rec.onerror = onError;
+    rec.onend = onEnd;
+    try { rec.start(); } catch (e) { restartTimer = setTimeout(createAndStart, 500); }
+  }
+
+  function onEnd() {
+    rec = null;
+    if (wantListening && document.visibilityState === 'visible') {
+      restartTimer = setTimeout(createAndStart, restartDelay);
+    }
+    renderMic();
+  }
+
+  function onError(ev) {
+    var code = ev.error;
+    if (code === 'no-speech' || code === 'aborted') { return; }
+    if (code === 'not-allowed' || code === 'service-not-allowed') {
+      wantListening = false;
+      feedbackError('El navegador bloqueó el micrófono. Permítelo en el candado de la barra de direcciones o usa la versión alojada (ver instrucciones).');
+      renderMic();
+      return;
+    }
+    if (code === 'network') {
+      restartDelay = 3000;
+      showFeedback('warn', 'El reconocimiento de voz necesita internet. Reintentando… Puedes usar el registro manual.');
+      return;
+    }
+    if (code === 'audio-capture') {
+      feedbackError('No se detecta micrófono.');
+      wantListening = false;
+      renderMic();
+    }
+  }
+
+  function onResult(ev) {
+    var interim = '';
+    restartDelay = 250;
+    for (var i = ev.resultIndex; i < ev.results.length; i++) {
+      var r = ev.results[i];
+      if (r.isFinal) {
+        var alts = [];
+        for (var k = 0; k < r.length; k++) { alts.push(r[k].transcript); }
+        handleFinal(alts);
+      } else {
+        interim += r[0].transcript;
+      }
+    }
+    $('heard').textContent = interim ? 'Escuchando: ' + interim : $('heard').textContent;
+  }
+
+  function handleFinal(alts) {
+    var primary = normalizeText(alts[0]);
+    var now = Date.now();
+    if (primary && primary === lastFinal.text && now - lastFinal.t < 2000) { return; }
+    lastFinal = { text: primary, t: now };
+    $('heard').textContent = 'Escuché: «' + alts[0].trim() + '»';
+    for (var i = 0; i < alts.length; i++) {
+      var cmds = parseCommands(alts[i], settings.unit);
+      var valid = cmds.length && cmds.every(function (c) { return c.type === 'undo' || (c.value !== null && !isNaN(c.value)); });
+      if (valid) { executeCommands(cmds); return; }
+    }
+    var fallback = parseCommands(alts[0], settings.unit);
+    if (fallback.length) { executeCommands(fallback); }
+  }
+
+  function requestWakeLock() {
+    if (!('wakeLock' in navigator)) { return; }
+    navigator.wakeLock.request('screen').then(function (lock) { wakeLock = lock; }).catch(function () { /* sin permiso */ });
+  }
+  function releaseWakeLock() {
+    if (wakeLock) { wakeLock.release().catch(function () {}); wakeLock = null; }
+  }
+
+  // ---------- Sonido y lectura ----------
+  var audioCtx = null;
+  function unlockAudio() {
+    try {
+      if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+    } catch (e) { audioCtx = null; }
+  }
+  function tone(freq, start, dur) {
+    var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.frequency.value = freq; o.type = 'sine';
+    g.gain.setValueAtTime(0.0001, audioCtx.currentTime + start);
+    g.gain.exponentialRampToValueAtTime(0.3, audioCtx.currentTime + start + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + start + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(audioCtx.currentTime + start); o.stop(audioCtx.currentTime + start + dur + 0.02);
+  }
+  function cue(kind) {
+    if (!settings.beep) { return; }
+    try {
+      if (audioCtx) {
+        if (kind === 'ok') { tone(880, 0, 0.12); tone(1320, 0.1, 0.14); }
+        else { tone(300, 0, 0.18); tone(220, 0.2, 0.22); }
+      }
+      if (navigator.vibrate) { navigator.vibrate(kind === 'ok' ? 40 : [80, 60, 80]); }
+    } catch (e) { /* sin audio */ }
+  }
+  function speak(text) {
+    if (!settings.speak || !('speechSynthesis' in window)) { return; }
+    try {
+      speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(text);
+      u.lang = 'es-CO'; u.rate = 1.1;
+      speechSynthesis.speak(u);
+    } catch (e) { /* sin síntesis */ }
+  }
+
+  // ---------- Interfaz ----------
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function showFeedback(kind, html, confirm) {
+    $('feedback').dataset.kind = kind;
+    $('feedbackText').innerHTML = html;
+    $('confirmBox').hidden = !confirm;
+  }
+  function feedbackError(text) {
+    showFeedback('error', escapeHtml(text));
+    cue('error');
+  }
+
+  function renderMic() {
+    var on = wantListening;
+    $('micBtn').setAttribute('aria-pressed', on ? 'true' : 'false');
+    $('micBtn').querySelector('.sr-only').textContent = on ? 'Pausar micrófono' : 'Activar micrófono';
+    $('micLabel').textContent = on ? 'Escuchando… toca para pausar' : 'Toca para escuchar';
+  }
+
+  function renderSync() {
+    var pending = entries.filter(function (e) { return e.status === 'pending' || e.status === 'syncing'; }).length;
+    var errors = entries.filter(function (e) { return e.status === 'error' && isToday(e.ts); }).length;
+    var pill = $('syncPill'), text;
+    if (authBlocked) { pill.dataset.state = 'error'; text = 'Revisar configuración'; }
+    else if (errors) { pill.dataset.state = 'error'; text = errors + ' con error'; }
+    else if (pending && !navigator.onLine) { pill.dataset.state = 'pending'; text = 'Sin conexión · ' + pending + ' en cola'; }
+    else if (pending) { pill.dataset.state = 'pending'; text = syncing ? 'Enviando ' + pending + '…' : pending + ' pendientes'; }
+    else { pill.dataset.state = 'ok'; text = 'Sincronizado'; }
+    $('syncText').textContent = text;
+  }
+
+  var STATUS_TEXT = { pending: 'En cola', syncing: 'Enviando', synced: 'En hoja', error: 'Error', deleting: 'Borrando' };
+
+  function render() {
+    if (document.activeElement !== $('shedInput')) { $('shedInput').value = settings.shed; }
+    if (document.activeElement !== $('birdsInput')) { $('birdsInput').value = settings.birds; }
+
+    var today = entries.filter(function (e) { return isToday(e.ts) && e.status !== 'removed'; });
+    var block = today.filter(function (e) { return String(e.shed) === String(settings.shed); });
+    $('statCount').textContent = block.length;
+    if (block.length) {
+      var sum = block.reduce(function (acc, e) { return acc + e.weight / e.birds; }, 0);
+      $('statAvg').textContent = fmt.format(sum / block.length) + ' g';
+      $('statLast').textContent = fmt.format(block[block.length - 1].weight) + ' g';
+    } else {
+      $('statAvg').textContent = '—';
+      $('statLast').textContent = '—';
+    }
+
+    var list = $('history');
+    list.textContent = '';
+    var recent = today.slice(-30).reverse();
+    $('histEmpty').hidden = recent.length > 0;
+    recent.forEach(function (e) {
+      var li = document.createElement('li');
+      var time = document.createElement('span');
+      time.className = 'meta';
+      time.textContent = new Date(e.ts).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+      var mid = document.createElement('div');
+      var w = document.createElement('div');
+      w.className = 'w';
+      w.textContent = fmt.format(e.weight) + ' g';
+      var meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = 'G' + e.shed + ' · ' + e.birds + ' pollos' + (e.row ? ' · fila ' + e.row : '') + (e.error ? ' · ' + errorText(e.error) : '');
+      mid.appendChild(w); mid.appendChild(meta);
+      var badge = document.createElement('span');
+      badge.className = 'badge ' + e.status;
+      badge.textContent = STATUS_TEXT[e.status] || e.status;
+      li.appendChild(time); li.appendChild(mid); li.appendChild(badge);
+      list.appendChild(li);
+    });
+    renderSync();
+  }
+
+  // ---------- Configuración ----------
+  function openSettings() {
+    $('endpointField').hidden = !!IS_GAS;
+    $('setEndpoint').value = settings.endpoint;
+    $('setToken').value = settings.token;
+    $('setUnit').value = settings.unit;
+    $('setMin').value = settings.min;
+    $('setMax').value = settings.max;
+    $('setSpeak').checked = !!settings.speak;
+    $('setBeep').checked = !!settings.beep;
+    $('testResult').textContent = '';
+    $('settings').showModal();
+  }
+
+  function readSettingsForm() {
+    settings.endpoint = $('setEndpoint').value.trim();
+    settings.token = $('setToken').value.trim();
+    settings.unit = $('setUnit').value;
+    settings.min = Math.max(1, parseInt($('setMin').value, 10) || DEFAULTS.min);
+    settings.max = Math.max(settings.min + 1, parseInt($('setMax').value, 10) || DEFAULTS.max);
+    settings.speak = $('setSpeak').checked;
+    settings.beep = $('setBeep').checked;
+    saveSettings();
+  }
+
+  function loadContext() {
+    if (!settings.token || (!IS_GAS && !settings.endpoint)) { return; }
+    callApi({ action: 'context' }).then(function (res) {
+      if (!res || !res.ok) { return; }
+      var changed = false;
+      if (!settings.shed && res.lastShed) { settings.shed = res.lastShed; changed = true; }
+      if (!settings.birds && res.lastBirds) { settings.birds = String(parseInt(res.lastBirds, 10) || ''); changed = true; }
+      if (changed) { saveSettings(); render(); }
+    }).catch(function () { /* sin conexión: se usa lo guardado */ });
+  }
+
+  // ---------- Eventos ----------
+  $('micBtn').addEventListener('click', function () { if (wantListening) { stopListening(); } else { startListening(); } });
+  $('undoBtn').addEventListener('click', function () { unlockAudio(); undoLast(); });
+  $('syncPill').addEventListener('click', function () {
+    authBlocked = false; backoffMs = 0; clearTimeout(retryTimer);
+    entries.forEach(function (e) { if (e.status === 'error' && e.error !== 'invalid_weight' && e.error !== 'invalid_birds' && e.error !== 'invalid_shed') { e.status = 'pending'; } });
+    syncNow();
+  });
+  $('openSettings').addEventListener('click', openSettings);
+  $('confirmYes').addEventListener('click', function () { if (pendingConfirm !== null) { addWeight(pendingConfirm, true); } });
+  $('confirmNo').addEventListener('click', function () { pendingConfirm = null; showFeedback('idle', 'Descartado.'); });
+
+  document.querySelectorAll('[data-step]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var key = btn.dataset.step, delta = Number(btn.dataset.delta);
+      var current = parseInt(settings[key], 10) || 0;
+      var next = Math.max(1, current + delta);
+      settings[key] = String(next); saveSettings(); render();
+    });
+  });
+  $('shedInput').addEventListener('change', function () { settings.shed = this.value.trim(); saveSettings(); render(); });
+  $('birdsInput').addEventListener('change', function () {
+    var n = parseInt(this.value, 10); settings.birds = n > 0 ? String(n) : ''; saveSettings(); render();
+  });
+
+  $('manualForm').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    unlockAudio();
+    var g = parseWeight(normalizeText($('manualInput').value), settings.unit);
+    if (g === null) { feedbackError('Escribe un peso válido.'); return; }
+    addWeight(g, false);
+    $('manualInput').value = '';
+  });
+
+  $('settingsForm').addEventListener('submit', function () {
+    readSettingsForm();
+    authBlocked = false; backoffMs = 0;
+    render(); syncNow(); loadContext();
+  });
+  $('testConn').addEventListener('click', function () {
+    readSettingsForm();
+    $('testResult').textContent = 'Probando…';
+    callApi({ action: 'ping' }).then(function (res) {
+      $('testResult').textContent = res && res.ok ? 'Conexión correcta.' : errorText(res && res.error);
+    }).catch(function (err) {
+      $('testResult').textContent = 'Sin respuesta: ' + errorText((err && err.message) || err);
+    });
+  });
+  $('clearSynced').addEventListener('click', function () {
+    entries = entries.filter(function (e) { return e.status !== 'synced'; });
+    saveEntries(); render();
+    $('testResult').textContent = 'Historial enviado borrado de este teléfono (la hoja no cambia).';
+  });
+
+  window.addEventListener('online', function () { backoffMs = 0; syncNow(); });
+  window.addEventListener('offline', renderSync);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') {
+      if (wantListening) { requestWakeLock(); if (!rec) { createAndStart(); } }
+      syncNow();
+    }
+  });
+  setInterval(syncNow, 15000);
+
+  // ---------- Inicio ----------
+  render();
+  renderMic();
+  if (!settings.token || (!IS_GAS && !settings.endpoint)) {
+    showFeedback('warn', 'Configura la conexión con la hoja para empezar.');
+    openSettings();
+  } else {
+    loadContext();
+    syncNow();
+  }
+})();
+</script>
+</body>
+</html>
