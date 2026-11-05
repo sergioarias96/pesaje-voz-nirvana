@@ -713,15 +713,21 @@
     syncNow();
   }
 
+  /** Removes the latest weight of the current mode (basket or individual). */
   function undoLast() {
     var last = null;
-    for (var i = entries.length - 1; i >= 0; i--) { if (entries[i].status !== 'removed') { last = entries[i]; break; } }
-    if (!last || !isToday(last.ts)) { feedbackError('No hay pesos para deshacer.'); return; }
+    for (var i = entries.length - 1; i >= 0; i--) {
+      if (entries[i].status !== 'removed' && entries[i].mode === settings.mode) { last = entries[i]; break; }
+    }
+    var modeName = isIndividual() ? 'individuales' : 'de canasta';
+    if (!last || !isToday(last.ts)) { feedbackError('No hay pesos ' + modeName + ' de hoy para deshacer.'); return; }
+    var label = fmt.format(last.weight) + ' g · Galpón ' + escapeHtml(last.shed)
+      + (last.mode === 'individual' && last.bird ? ' · ave ' + last.bird : '');
     if (last.status === 'pending' || last.status === 'error') {
       entries.splice(entries.indexOf(last), 1);
       saveEntries(); render();
-      showFeedback('ok', 'Borrado: ' + fmt.format(last.weight) + ' g');
-      cue('ok'); speak('Borrado');
+      showFeedback('ok', 'Borrado: ' + label);
+      cue('ok'); speak('Borrado ' + fmt.format(last.weight));
       return;
     }
     if (last.status === 'syncing' || last.status === 'deleting') {
@@ -733,8 +739,8 @@
     callApi({ action: 'delete', id: last.id, weight: last.weight }).then(function (res) {
       if (res && res.ok) {
         entries.splice(entries.indexOf(last), 1);
-        showFeedback('ok', 'Borrado de la hoja: ' + fmt.format(last.weight) + ' g');
-        cue('ok'); speak('Borrado');
+        showFeedback('ok', 'Borrado de la hoja: ' + label);
+        cue('ok'); speak('Borrado ' + fmt.format(last.weight));
       } else {
         last.status = 'synced';
         feedbackError(errorText(res && res.error));
