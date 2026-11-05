@@ -100,7 +100,7 @@
     border-radius: 12px; background: var(--paper); color: var(--ink);
   }
   .stats { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
-  .stat { flex: 1 1 30%; background: var(--paper); border-radius: 10px; padding: 8px 10px; }
+  .stat { flex: 1 1 0; min-width: 64px; background: var(--paper); border-radius: 10px; padding: 8px 10px; }
   .stat span { display: block; font-size: .75rem; color: var(--muted); }
   .stat strong { font-family: var(--mono); font-size: 1.0625rem; }
   .feedback {
@@ -179,6 +179,18 @@
   .check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
   .check input { width: 22px; height: 22px; }
   .dlg-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  .modes {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px; border: 1px solid var(--line);
+    border-radius: 14px; padding: 4px; margin: 0 0 12px; background: var(--surface);
+  }
+  .modes label {
+    position: relative; min-height: 48px; border-radius: 10px; display: grid; place-items: center;
+    font-weight: 600; cursor: pointer; color: var(--muted);
+  }
+  .modes input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .modes label:has(input:checked) { background: var(--btn-bg); color: var(--btn-text); }
+  .modes label:has(input:focus-visible) { outline: 3px solid var(--info); outline-offset: 2px; }
+  .range-title { font-weight: 600; margin: 4px 0 6px; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   [hidden] { display: none !important; }
 </style>
@@ -195,8 +207,14 @@
     </button>
   </header>
 
+  <fieldset class="modes">
+    <legend class="sr-only">Tipo de pesaje</legend>
+    <label><input type="radio" name="mode" value="basket"> Canasta</label>
+    <label><input type="radio" name="mode" value="individual"> Individual</label>
+  </fieldset>
+
   <section class="card" aria-label="Galpón y pollos por canasta">
-    <div class="ctx">
+    <div class="ctx" id="ctxGrid">
       <div>
         <label for="shedInput">Galpón</label>
         <div class="stepper">
@@ -205,7 +223,7 @@
           <button type="button" data-step="shed" data-delta="1" aria-label="Galpón siguiente">+</button>
         </div>
       </div>
-      <div>
+      <div id="birdsField">
         <label for="birdsInput">Pollos por canasta</label>
         <div class="stepper">
           <button type="button" data-step="birds" data-delta="-1" aria-label="Un pollo menos">−</button>
@@ -215,8 +233,9 @@
       </div>
     </div>
     <div class="stats" aria-live="off">
-      <div class="stat"><span>Canastas hoy</span><strong id="statCount">0</strong></div>
-      <div class="stat"><span>Prom./ave</span><strong id="statAvg">—</strong></div>
+      <div class="stat"><span id="statCountLabel">Canastas hoy</span><strong id="statCount">0</strong></div>
+      <div class="stat"><span id="statAvgLabel">Prom./ave</span><strong id="statAvg">—</strong></div>
+      <div class="stat" id="statCvBox" hidden><span>CV</span><strong id="statCv">—</strong></div>
       <div class="stat"><span>Último</span><strong id="statLast">—</strong></div>
     </div>
   </section>
@@ -254,7 +273,9 @@
         <li><strong>pollos</strong> + número: <code>pollos 6</code> (también <em>cantidad</em> o <em>aves</em>).</li>
         <li><strong>borrar</strong> o <strong>deshacer</strong>: elimina el último peso.</li>
         <li>Puedes decir varios seguidos: <code>galpón 2 pollos 6 peso 11880</code>.</li>
-        <li>Valores menores a 100 se toman como kilos (11,27 → 11.270 g).</li>
+        <li>En <strong>Individual</strong> con dictado rápido basta el número: <code>cuatrocientos doce</code>. Siempre en gramos.</li>
+        <li>Individual escribe en «Peso individual galpones», en el bloque del viernes de esa semana (galpón 2 o 3). Si el bloque no existe, se crea solo.</li>
+        <li>En canasta con unidad automática, los valores menores a 100 se toman como kilos (11,27 → 11.270 g).</li>
       </ul>
     </details>
   </section>
@@ -285,13 +306,15 @@
       <div class="hint">Se obtiene ejecutando <code>setupPesajeToken</code> en Apps Script.</div>
     </div>
     <div class="field">
-      <label for="setUnit">Unidad dictada</label>
+      <label for="setUnit">Unidad dictada en canasta</label>
       <select id="setUnit">
         <option value="auto">Automática (&lt;100 = kg, resto = g)</option>
         <option value="g">Siempre gramos</option>
         <option value="kg">Siempre kilos</option>
       </select>
+      <div class="hint">En individual siempre se usan gramos.</div>
     </div>
+    <p class="range-title">Rango de canasta</p>
     <div class="row2">
       <div class="field">
         <label for="setMin">Mínimo (g)</label>
@@ -302,7 +325,19 @@
         <input type="number" id="setMax" inputmode="numeric" min="1">
       </div>
     </div>
-    <div class="field hint">Fuera de ese rango la app pide confirmación antes de registrar.</div>
+    <p class="range-title">Rango individual</p>
+    <div class="row2">
+      <div class="field">
+        <label for="setIndMin">Mínimo (g)</label>
+        <input type="number" id="setIndMin" inputmode="numeric" min="1">
+      </div>
+      <div class="field">
+        <label for="setIndMax">Máximo (g)</label>
+        <input type="number" id="setIndMax" inputmode="numeric" min="1">
+      </div>
+    </div>
+    <div class="field hint">Fuera del rango la app pide confirmación antes de registrar.</div>
+    <label class="check"><input type="checkbox" id="setQuick"> Dictado rápido en individual (solo el número, sin «peso»)</label>
     <label class="check"><input type="checkbox" id="setSpeak"> Leer en voz alta cada peso registrado</label>
     <label class="check"><input type="checkbox" id="setBeep"> Sonido y vibración de confirmación</label>
     <p class="hint" id="testResult" role="status" aria-live="polite"></p>
@@ -438,17 +473,49 @@
   }
 
   function parseInteger(segment) {
+    var first = segment.match(/\d+/);
+    if (first) { return Number(first[0]); }
     var n = parseNumber(segment, false);
     return n === null ? null : Math.round(n);
   }
 
-  function parseCommands(text, unit) {
+  var NUMBER_WORD_RE = /^(y|mil|gramos?|g|gr)$/;
+  function isNumberWord(w) {
+    return NUMBER_WORD_RE.test(w) || Object.prototype.hasOwnProperty.call(UNITS, w)
+      || Object.prototype.hasOwnProperty.call(TENS, w) || Object.prototype.hasOwnProperty.call(HUNDREDS, w);
+  }
+
+  /**
+   * Quick mode: every number in the utterance is one weight in grams.
+   * Numbers written with digits are split by spaces ("412 398" = two birds);
+   * an utterance made only of number words is one weight.
+   */
+  function parseQuickWeights(t) {
+    var tokens = t.match(/\d[\d.,]*/g);
+    var cmds = [];
+    if (tokens) {
+      tokens.forEach(function (tok) {
+        var n = parseDigits(tok.replace(/[.,]+$/, ''), false);
+        if (n !== null && n > 0) { cmds.push({ type: 'weight', value: Math.round(n), raw: tok }); }
+      });
+      return cmds;
+    }
+    var words = t.split(' ').filter(Boolean);
+    if (words.length && words.every(isNumberWord)) {
+      var v = wordsToInt(words.filter(function (w) { return !/^(gramos?|g|gr)$/.test(w); }));
+      if (v !== null && v > 0) { cmds.push({ type: 'weight', value: v, raw: t }); }
+    }
+    return cmds;
+  }
+
+  function parseCommands(text, unit, quick) {
     var t = normalizeText(text);
     var matches = [], m;
     KEYWORD_RE.lastIndex = 0;
     while ((m = KEYWORD_RE.exec(t)) !== null) {
       matches.push({ kw: m[1], start: m.index, end: m.index + m[1].length });
     }
+    if (!matches.length && quick) { return parseQuickWeights(t); }
     var cmds = [];
     for (var i = 0; i < matches.length; i++) {
       var type = KEYWORDS[matches[i].kw];
@@ -471,7 +538,12 @@
   var STORE_SETTINGS = 'pesajeVoz.settings';
   var STORE_ENTRIES = 'pesajeVoz.entries';
   var IS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
-  var DEFAULTS = { endpoint: '', token: '', unit: 'auto', min: 500, max: 30000, speak: true, beep: true, shed: '', birds: '' };
+  var DEFAULTS = {
+    endpoint: '', token: '', unit: 'auto', mode: 'basket',
+    basketMin: 1000, basketMax: 30000, indMin: 35, indMax: 5000, quick: true,
+    speak: true, beep: true, shed: '', birds: ''
+  };
+  var IND_SHEDS = ['2', '3'];
   var fmt = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
 
   function load(key, fallback) {
@@ -482,8 +554,19 @@
   }
 
   var settings = Object.assign({}, DEFAULTS, load(STORE_SETTINGS, {}));
+  delete settings.min; delete settings.max;
   var entries = load(STORE_ENTRIES, []);
-  entries.forEach(function (e) { if (e.status === 'syncing') { e.status = 'pending'; } if (e.status === 'deleting') { e.status = 'synced'; } });
+  entries.forEach(function (e) {
+    if (!e.mode) { e.mode = 'basket'; }
+    if (e.status === 'syncing') { e.status = 'pending'; }
+    if (e.status === 'deleting') { e.status = 'synced'; }
+  });
+  function isIndividual() { return settings.mode === 'individual'; }
+  function modeUnit() { return isIndividual() ? 'g' : settings.unit; }
+  function modeRange() {
+    return isIndividual() ? { min: settings.indMin, max: settings.indMax }
+      : { min: settings.basketMin, max: settings.basketMax };
+  }
   var pendingConfirm = null;
   var syncing = false, backoffMs = 0, retryTimer = null, lastSyncError = '', authBlocked = false;
 
@@ -529,7 +612,10 @@
     not_found: 'No se encontró el registro en la hoja.',
     invalid_weight: 'Peso no válido.',
     invalid_birds: 'Número de pollos no válido.',
-    invalid_shed: 'Galpón no válido.'
+    invalid_shed: 'Galpón no válido.',
+    invalid_shed_individual: 'En individual el galpón debe ser 2 o 3.',
+    block_full: 'El bloque de esta semana ya está lleno para ese galpón.',
+    no_template_block: 'No hay un bloque anterior para copiar en «Peso individual galpones».'
   };
   function errorText(code) { return ERROR_TEXT[code] || ('Error: ' + code); }
 
@@ -542,13 +628,17 @@
 
   function syncNow() {
     if (syncing || authBlocked) { renderSync(); return; }
-    var batch = entries.filter(function (e) { return e.status === 'pending'; }).slice(0, 50);
-    if (!batch.length) { renderSync(); return; }
+    var firstPending = entries.filter(function (e) { return e.status === 'pending'; })[0];
+    if (!firstPending) { renderSync(); return; }
     if (!navigator.onLine) { renderSync(); return; }
+    var batchMode = firstPending.mode;
+    var batch = entries.filter(function (e) {
+      return e.status === 'pending' && e.mode === batchMode;
+    }).slice(0, 50);
     syncing = true;
     batch.forEach(function (e) { e.status = 'syncing'; });
     render();
-    callApi({ action: 'append', entries: batch.map(function (e) {
+    callApi({ action: batchMode === 'individual' ? 'appendIndividual' : 'append', entries: batch.map(function (e) {
       return { id: e.id, shed: e.shed, birds: e.birds, weight: e.weight, ts: e.ts };
     }) }).then(function (res) {
       if (!res || !res.ok) { throw new Error((res && res.error) || 'unknown'); }
@@ -556,7 +646,10 @@
       res.results.forEach(function (r) { byId[r.id] = r; });
       batch.forEach(function (e) {
         var r = byId[e.id];
-        if (r && r.ok) { e.status = 'synced'; e.row = r.row; e.error = ''; }
+        if (r && r.ok) {
+          e.status = 'synced'; e.row = r.row; e.error = '';
+          if (r.bird) { e.bird = r.bird; e.capacity = r.capacity; e.blockDate = r.date; }
+        }
         else if (r) { e.status = 'error'; e.error = r.error; }
         else { e.status = 'pending'; }
       });
@@ -588,21 +681,32 @@
 
   function addWeight(grams, force) {
     var ctx = currentContext();
-    if (!ctx.shed || !(ctx.birds > 0)) {
+    var individual = isIndividual();
+    if (individual && IND_SHEDS.indexOf(ctx.shed) < 0) {
+      feedbackError(errorText('invalid_shed_individual'));
+      return;
+    }
+    if (!individual && (!ctx.shed || !(ctx.birds > 0))) {
       feedbackError('Primero define el galpón y los pollos por canasta.');
       return;
     }
-    if (!force && (grams < settings.min || grams > settings.max)) {
+    var range = modeRange();
+    if (!force && (grams < range.min || grams > range.max)) {
       pendingConfirm = grams;
-      showFeedback('warn', fmt.format(grams) + ' g está fuera del rango ' + fmt.format(settings.min) + '–' + fmt.format(settings.max) + ' g. ¿Lo registro?', true);
+      showFeedback('warn', fmt.format(grams) + ' g está fuera del rango ' + fmt.format(range.min) + '–' + fmt.format(range.max) + ' g. ¿Lo registro?', true);
       cue('error');
       speak('Fuera de rango, ' + fmt.format(grams) + ' gramos');
       return;
     }
     pendingConfirm = null;
-    entries.push({ id: uuid(), shed: ctx.shed, birds: ctx.birds, weight: grams, ts: Date.now(), status: 'pending' });
+    entries.push({ id: uuid(), mode: settings.mode, shed: ctx.shed, birds: individual ? 1 : ctx.birds,
+      weight: grams, ts: Date.now(), status: 'pending' });
     saveEntries();
-    showFeedback('ok', '<span class="big">' + fmt.format(grams) + ' g</span>Galpón ' + escapeHtml(ctx.shed) + ' · ' + ctx.birds + ' pollos · ' + fmt.format(grams / ctx.birds) + ' g/ave');
+    if (individual) {
+      showFeedback('ok', '<span class="big">' + fmt.format(grams) + ' g</span>Individual · Galpón ' + escapeHtml(ctx.shed) + ' · ave ' + blockStats().count);
+    } else {
+      showFeedback('ok', '<span class="big">' + fmt.format(grams) + ' g</span>Galpón ' + escapeHtml(ctx.shed) + ' · ' + ctx.birds + ' pollos · ' + fmt.format(grams / ctx.birds) + ' g/ave');
+    }
     cue('ok');
     speak(fmt.format(grams));
     render();
@@ -759,12 +863,13 @@
     if (primary && primary === lastFinal.text && now - lastFinal.t < 2000) { return; }
     lastFinal = { text: primary, t: now };
     $('heard').textContent = 'Escuché: «' + alts[0].trim() + '»';
+    var quick = isIndividual() && settings.quick;
     for (var i = 0; i < alts.length; i++) {
-      var cmds = parseCommands(alts[i], settings.unit);
+      var cmds = parseCommands(alts[i], modeUnit(), quick);
       var valid = cmds.length && cmds.every(function (c) { return c.type === 'undo' || (c.value !== null && !isNaN(c.value)); });
       if (valid) { executeCommands(cmds); return; }
     }
-    var fallback = parseCommands(alts[0], settings.unit);
+    var fallback = parseCommands(alts[0], modeUnit(), quick);
     if (fallback.length) { executeCommands(fallback); }
   }
 
@@ -851,20 +956,55 @@
 
   var STATUS_TEXT = { pending: 'En cola', syncing: 'Enviando', synced: 'En hoja', error: 'Error', deleting: 'Borrando' };
 
+  /** Live stats of today's weights for the current mode and shed. */
+  function blockStats() {
+    var mode = settings.mode;
+    var list = entries.filter(function (e) {
+      return isToday(e.ts) && e.mode === mode && String(e.shed) === String(settings.shed);
+    });
+    var count = list.length;
+    if (mode === 'individual') {
+      for (var i = list.length - 1; i >= 0; i--) {
+        if (list[i].bird) { count = list[i].bird + (list.length - 1 - i); break; }
+      }
+    }
+    var perBird = list.map(function (e) { return e.weight / (e.birds || 1); });
+    var n = perBird.length, avg = null, cv = null;
+    if (n) {
+      avg = perBird.reduce(function (a, b) { return a + b; }, 0) / n;
+      if (n > 1) {
+        var variance = perBird.reduce(function (a, b) { return a + (b - avg) * (b - avg); }, 0) / (n - 1);
+        cv = Math.sqrt(variance) / avg;
+      }
+    }
+    return { list: list, count: count, avg: avg, cv: cv, last: n ? list[n - 1] : null };
+  }
+
+  var pct = new Intl.NumberFormat('es-CO', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
   function render() {
+    var individual = isIndividual();
+    document.querySelectorAll('input[name="mode"]').forEach(function (r) { r.checked = r.value === settings.mode; });
+    $('birdsField').hidden = individual;
+    $('ctxGrid').style.gridTemplateColumns = individual ? '1fr' : '';
+    $('manualInput').placeholder = individual ? 'Peso (g)' : 'Peso (g o kg)';
     if (document.activeElement !== $('shedInput')) { $('shedInput').value = settings.shed; }
     if (document.activeElement !== $('birdsInput')) { $('birdsInput').value = settings.birds; }
 
     var today = entries.filter(function (e) { return isToday(e.ts) && e.status !== 'removed'; });
-    var block = today.filter(function (e) { return String(e.shed) === String(settings.shed); });
-    $('statCount').textContent = block.length;
-    if (block.length) {
-      var sum = block.reduce(function (acc, e) { return acc + e.weight / e.birds; }, 0);
-      $('statAvg').textContent = fmt.format(sum / block.length) + ' g';
-      $('statLast').textContent = fmt.format(block[block.length - 1].weight) + ' g';
-    } else {
-      $('statAvg').textContent = '—';
-      $('statLast').textContent = '—';
+    var stats = blockStats();
+    $('statCountLabel').textContent = individual ? 'Aves G' + (settings.shed || '?') : 'Canastas hoy';
+    $('statAvgLabel').textContent = individual ? 'Promedio' : 'Prom./ave';
+    $('statCvBox').hidden = !individual;
+    var capacity = stats.last && stats.last.capacity;
+    $('statCount').textContent = individual && capacity ? stats.count + '/' + capacity : stats.count;
+    $('statAvg').textContent = stats.avg === null ? '—' : fmt.format(stats.avg) + ' g';
+    $('statCv').textContent = stats.cv === null ? '—' : pct.format(stats.cv);
+    $('statLast').textContent = stats.last ? fmt.format(stats.last.weight) + ' g' : '—';
+    if ($('feedback').dataset.kind === 'idle') {
+      $('feedbackText').innerHTML = individual && settings.quick
+        ? 'Toca el micrófono y di <strong>solo el número</strong> de cada ave.'
+        : 'Toca el micrófono y di <strong>«peso»</strong> seguido del valor.';
     }
 
     var list = $('history');
@@ -882,7 +1022,10 @@
       w.textContent = fmt.format(e.weight) + ' g';
       var meta = document.createElement('div');
       meta.className = 'meta';
-      meta.textContent = 'G' + e.shed + ' · ' + e.birds + ' pollos' + (e.row ? ' · fila ' + e.row : '') + (e.error ? ' · ' + errorText(e.error) : '');
+      meta.textContent = (e.mode === 'individual'
+        ? 'Individual · G' + e.shed + (e.bird ? ' · ave ' + e.bird : '')
+        : 'G' + e.shed + ' · ' + e.birds + ' pollos' + (e.row ? ' · fila ' + e.row : ''))
+        + (e.error ? ' · ' + errorText(e.error) : '');
       mid.appendChild(w); mid.appendChild(meta);
       var badge = document.createElement('span');
       badge.className = 'badge ' + e.status;
@@ -899,8 +1042,11 @@
     $('setEndpoint').value = settings.endpoint;
     $('setToken').value = settings.token;
     $('setUnit').value = settings.unit;
-    $('setMin').value = settings.min;
-    $('setMax').value = settings.max;
+    $('setMin').value = settings.basketMin;
+    $('setMax').value = settings.basketMax;
+    $('setIndMin').value = settings.indMin;
+    $('setIndMax').value = settings.indMax;
+    $('setQuick').checked = !!settings.quick;
     $('setSpeak').checked = !!settings.speak;
     $('setBeep').checked = !!settings.beep;
     $('testResult').textContent = '';
@@ -911,8 +1057,11 @@
     settings.endpoint = $('setEndpoint').value.trim();
     settings.token = $('setToken').value.trim();
     settings.unit = $('setUnit').value;
-    settings.min = Math.max(1, parseInt($('setMin').value, 10) || DEFAULTS.min);
-    settings.max = Math.max(settings.min + 1, parseInt($('setMax').value, 10) || DEFAULTS.max);
+    settings.basketMin = Math.max(1, parseInt($('setMin').value, 10) || DEFAULTS.basketMin);
+    settings.basketMax = Math.max(settings.basketMin + 1, parseInt($('setMax').value, 10) || DEFAULTS.basketMax);
+    settings.indMin = Math.max(1, parseInt($('setIndMin').value, 10) || DEFAULTS.indMin);
+    settings.indMax = Math.max(settings.indMin + 1, parseInt($('setIndMax').value, 10) || DEFAULTS.indMax);
+    settings.quick = $('setQuick').checked;
     settings.speak = $('setSpeak').checked;
     settings.beep = $('setBeep').checked;
     saveSettings();
@@ -938,6 +1087,18 @@
     syncNow();
   });
   $('openSettings').addEventListener('click', openSettings);
+  document.querySelectorAll('input[name="mode"]').forEach(function (radio) {
+    radio.addEventListener('change', function () {
+      if (!radio.checked) { return; }
+      settings.mode = radio.value;
+      if (isIndividual() && IND_SHEDS.indexOf(String(settings.shed)) < 0) { settings.shed = '3'; }
+      pendingConfirm = null;
+      saveSettings();
+      showFeedback('idle', '');
+      render();
+      speak(isIndividual() ? 'Modo individual' : 'Modo canasta');
+    });
+  });
   $('confirmYes').addEventListener('click', function () { if (pendingConfirm !== null) { addWeight(pendingConfirm, true); } });
   $('confirmNo').addEventListener('click', function () { pendingConfirm = null; showFeedback('idle', 'Descartado.'); });
 
@@ -957,7 +1118,7 @@
   $('manualForm').addEventListener('submit', function (ev) {
     ev.preventDefault();
     unlockAudio();
-    var g = parseWeight(normalizeText($('manualInput').value), settings.unit);
+    var g = parseWeight(normalizeText($('manualInput').value), modeUnit());
     if (g === null) { feedbackError('Escribe un peso válido.'); return; }
     addWeight(g, false);
     $('manualInput').value = '';
